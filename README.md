@@ -19,9 +19,9 @@ nota.
 
 | Nombre completo | Código |
 |---|---|
-| | |
-| | |
-| | |
+| Jessica Viviana Viscue| 2459376-2724|
+| Juan Sebastian Falla| 2459599-2724|
+| Andres Felipe Velasquez| 2459534-2724|
 | | |
 
 ## El problema, en una línea
