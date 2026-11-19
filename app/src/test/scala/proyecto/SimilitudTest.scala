@@ -119,4 +119,54 @@ class SimilitudTest extends AnyFunSuite {
     assert(fragmentos(Vector("x", "y", "z"), 1) ==
       Vector(Vector("x"), Vector("y"), Vector("z")))
   }
+
+  //Pruebas huella
+  test("huella: un fragmento repetido cuenta una sola vez") {
+    val d: Documento = ("r", Vector("a", "b", "a", "b"))
+    assert(huella(d, 2) == Set(Vector("a", "b"), Vector("b", "a")))
+  }
+
+  test("huella: con menos de k palabras da el conjunto vacío") {
+    assert(huella(("corto", Vector("hola")), 3) == Set())
+  }
+
+  test("huella: el documento vacío da el conjunto vacío") {
+    assert(huella(("vacio", Vector()), 2) == Set())
+  }
+
+  test("huella: todas las palabras iguales dan un solo fragmento") {
+    assert(huella(("igual", Vector("x", "x", "x", "x")), 2) == Set(Vector("x", "x")))
+  }
+
+  test("huella: sobre un texto normalizado") {
+    val d: Documento = ("t", normalizar("Hola, MUNDO; hola!"))
+    assert(huella(d, 2) == Set(Vector("hola", "mundo"), Vector("mundo", "hola")))
+  }
+
+  //Pruebas huellas
+  test("huellas: el corpus vacío da el vector vacío") {
+    assert(huellas(Vector(), 2) == Vector())
+  }
+
+  test("huellas: conserva el orden del corpus") {
+    val c: Corpus = Vector(("a", Vector("x", "y")), ("b", Vector("y", "z")))
+    assert(huellas(c, 2) == Vector(Set(Vector("x", "y")), Set(Vector("y", "z"))))
+  }
+
+  test("huellas: cada posición coincide con huella del documento") {
+    val c: Corpus = Vector(("a", Vector("uno", "dos", "tres")), ("b", Vector("cuatro")))
+    val hs = huellas(c, 2)
+    assert(hs(0) == huella(c(0), 2) && hs(1) == huella(c(1), 2))
+  }
+
+  test("huellas: un documento corto deja su huella vacía") {
+    val c: Corpus = Vector(("a", Vector("p", "q", "r")), ("b", Vector("p")))
+    assert(huellas(c, 2)(1).isEmpty)
+  }
+
+  test("huellas: documentos iguales tienen la misma huella") {
+    val c: Corpus = Vector(("a", normalizar("El sol sale")), ("b", normalizar("el SOL sale")))
+    val hs = huellas(c, 2)
+    assert(hs(0) == hs(1))
+  }
 }
