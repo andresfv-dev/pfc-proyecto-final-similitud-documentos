@@ -97,4 +97,26 @@ class SimilitudTest extends AnyFunSuite {
     assert(detectarDirecto(c1, 3, 0.2, 5) == detectarConIndice(c1, 3, 0.2, 5))
     assert(detectarDirecto(c2, 3, 0.3, 5) == detectarConIndice(c2, 3, 0.3, 5))
   }
+
+  //Pruebas fragmentos
+  test("fragmentos: con menos de k palabras da vacío") {
+    assert(fragmentos(Vector("hola"), 2) == Vector())
+  }
+
+  test("fragmentos: el documento vacío da vacío") {
+    assert(fragmentos(Vector(), 2) == Vector())
+  }
+
+  test("fragmentos: con exactamente k palabras da un solo fragmento") {
+    assert(fragmentos(Vector("hola", "mundo"), 2) == Vector(Vector("hola", "mundo")))
+  }
+
+  test("fragmentos: devuelve t - k + 1 fragmentos") {
+    assert(fragmentos(Vector("yo", "como", "arroz", "con", "huevo"), 3).length == 3)
+  }
+
+  test("fragmentos: con k = 1 cada palabra es un fragmento") {
+    assert(fragmentos(Vector("x", "y", "z"), 1) ==
+      Vector(Vector("x"), Vector("y"), Vector("z")))
+  }
 }
