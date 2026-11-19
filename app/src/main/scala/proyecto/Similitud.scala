@@ -124,7 +124,11 @@ object Similitud {
    * Las parejas que comparten al menos un fragmento, sin repetir y ordenadas.
    * Una misma pareja puede salir de varias entradas del índice.
    */
-  def parejasCandidatas(idx: Indice): Vector[Pareja] = ???
+  def parejasCandidatas(idx: Indice): Vector[Pareja] = {
+    val conjuntos = idx.values.toVector.map(docs => docs.toVector.sorted)
+    val todas = conjuntos.flatMap(docs => docs.combinations(2).map(par => (par(0), par(1))).toVector)
+    todas.distinct.sorted
+  }
 
   /**
    * Las mediciones que alcanzan el umbral, de mayor a menor similitud y
