@@ -106,7 +106,12 @@ object Similitud {
    * Índice de Jaccard de dos huellas, el tamaño de la intersección sobre el de
    * la unión. Dos huellas vacías dan cero y no dividen por cero.
    */
-  def jaccard(h1: Huella, h2: Huella): Double = ???
+  def jaccard(h1: Huella, h2: Huella): Double = {
+    val comunes = h1.intersect(h2)
+    val unidos = h1.union(h2)
+    if (unidos.isEmpty) 0.0
+    else comunes.size.toDouble / unidos.size
+  }
 
   /** Las n (n - 1) / 2 parejas (i, j) con i < j, en orden. */
   def parejas(n: Int): Vector[Pareja] = ???

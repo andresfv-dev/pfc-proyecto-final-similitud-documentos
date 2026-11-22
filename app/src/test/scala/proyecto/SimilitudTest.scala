@@ -169,4 +169,30 @@ class SimilitudTest extends AnyFunSuite {
     val hs = huellas(c, 2)
     assert(hs(0) == hs(1))
   }
+
+  //Pruebas jaccard
+  test("jaccard: dos huellas vacías dan cero") {
+    assert(jaccard(Set.empty, Set.empty) == 0.0)
+  }
+
+  test("jaccard: una huella vacía y otra no vacía dan cero") {
+    assert(jaccard(Set.empty, Set(Vector("sol"))) == 0.0)
+  }
+
+  test("jaccard: huellas sin fragmentos en común dan cero") {
+    assert(jaccard(Set(Vector("sol")), Set(Vector("luna"))) == 0.0)
+  }
+
+  test("jaccard: dos huellas iguales no vacías dan uno") {
+    val conjunto = Set(Vector("sol"), Vector("luna"))
+    assert(jaccard(conjunto, conjunto) == 1.0)
+  }
+
+  test("jaccard: informe final se cuenta una sola vez en la unión") {
+    val primera = Set(Vector("informe", "final"), Vector("costos", "estimados"))
+    val segunda = Set(Vector("informe", "final"), Vector("ventas", "mensuales"),
+      Vector("saldo", "pendiente"))
+
+    assert(jaccard(primera, segunda) == 0.25)
+  }
 }
