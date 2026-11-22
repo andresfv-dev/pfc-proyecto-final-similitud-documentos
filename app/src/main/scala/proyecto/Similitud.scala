@@ -114,7 +114,12 @@ object Similitud {
   }
 
   /** Las n (n - 1) / 2 parejas (i, j) con i < j, en orden. */
-  def parejas(n: Int): Vector[Pareja] = ???
+  def parejas(n: Int): Vector[Pareja] = {
+    for {
+      primera <- (0 until n).toVector
+      segunda <- (primera + 1) until n
+    } yield (primera, segunda)
+  }
 
   /** La similitud de cada pareja que se le pase, en el mismo orden. */
   def similitudes(hs: Vector[Huella], ps: Vector[Pareja]): Vector[Medicion] = ???
