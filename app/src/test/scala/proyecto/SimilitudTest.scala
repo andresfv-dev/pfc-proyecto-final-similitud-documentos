@@ -195,4 +195,25 @@ class SimilitudTest extends AnyFunSuite {
 
     assert(jaccard(primera, segunda) == 0.25)
   }
+
+  //Pruebas parejas
+  test("parejas: un corpus vacío no tiene parejas") {
+    assert(parejas(0).isEmpty)
+  }
+
+  test("parejas: un documento no se compara consigo mismo") {
+    assert(parejas(1).isEmpty)
+  }
+
+  test("parejas: dos documentos se comparan una sola vez") {
+    assert(parejas(2) == Vector((0, 1)))
+  }
+
+  test("parejas: cuatro documentos dan las seis parejas en orden") {
+    assert(parejas(4) == Vector((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)))
+  }
+
+  test("parejas: el sexto documento se compara con todos los anteriores") {
+    assert(parejas(6).filter(_._2 == 5) == Vector((0, 5), (1, 5), (2, 5), (3, 5), (4, 5)))
+  }
 }
