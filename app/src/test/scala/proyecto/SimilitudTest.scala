@@ -237,4 +237,128 @@ class SimilitudTest extends AnyFunSuite {
   test("normalizar: conserva dígitos y letras con tilde") {
     assert(normalizar("Harry tiene 11 AÑOS") == Vector("harry", "tiene", "11", "años"))
   }
+
+  //Pruebas indiceInvertido
+  test("indiceInvertido: sin huellas da el mapa vacío") {
+    assert(indiceInvertido(Vector()) == Map())
+  }
+
+  test("indiceInvertido: un solo documento asocia cada fragmento a la posición 0") {
+    val hs: Vector[Huella] = Vector(Set(Vector("a", "b"), Vector("b", "c")))
+    assert(indiceInvertido(hs) ==
+      Map(Vector("a", "b") -> Set(0), Vector("b", "c") -> Set(0)))
+  }
+
+  test("indiceInvertido: un fragmento en tres documentos queda con las tres posiciones") {
+    val hs: Vector[Huella] = Vector(Set(Vector("x")), Set(Vector("x")), Set(Vector("x")))
+    assert(indiceInvertido(hs) == Map(Vector("x") -> Set(0, 1, 2)))
+  }
+
+  test("indiceInvertido: una huella vacía no aporta ninguna entrada") {
+    val hs: Vector[Huella] = Vector(Set(), Set(Vector("a")))
+    assert(indiceInvertido(hs) == Map(Vector("a") -> Set(1)))
+  }
+
+  test("indiceInvertido: cada fragmento queda con los documentos donde aparece") {
+    val hs: Vector[Huella] =
+      Vector(Set(Vector("a")), Set(Vector("b")), Set(Vector("a"), Vector("b")))
+    val idx = indiceInvertido(hs)
+    assert(idx(Vector("a")) == Set(0, 2) && idx(Vector("b")) == Set(1, 2) && idx.size == 2)
+  }
+
+  //Pruebas parejasCandidatas
+  test("parejasCandidatas: un índice vacío no tiene parejas") {
+    assert(parejasCandidatas(Map()) == Vector())
+  }
+
+  test("parejasCandidatas: un fragmento en un solo documento no forma pareja") {
+    assert(parejasCandidatas(Map(Vector("a") -> Set(0))) == Vector())
+  }
+
+  test("parejasCandidatas: un fragmento en tres documentos da las tres parejas en orden") {
+    assert(parejasCandidatas(Map(Vector("x") -> Set(2, 0, 1))) ==
+      Vector((0, 1), (0, 2), (1, 2)))
+  }
+
+  test("parejasCandidatas: una pareja que sale de dos fragmentos aparece una sola vez") {
+    val idx: Indice = Map(Vector("a") -> Set(0, 1), Vector("b") -> Set(0, 1))
+    assert(parejasCandidatas(idx) == Vector((0, 1)))
+  }
+
+  test("parejasCandidatas: el resultado sale ordenado") {
+    val idx: Indice = Map(Vector("a") -> Set(2, 3), Vector("b") -> Set(0, 1))
+    assert(parejasCandidatas(idx) == Vector((0, 1), (2, 3)))
+  }
+
+  //Pruebas ranking
+  test("ranking: sin mediciones da el vector vacío") {
+    assert(ranking(Vector(), 0.0, 5) == Vector())
+  }
+
+  test("ranking: un umbral mayor que todas las similitudes da el vector vacío") {
+    assert(ranking(Vector((0, 1, 0.4)), 0.5, 5) == Vector())
+  }
+
+  test("ranking: una medición igual al umbral sí se reporta") {
+    assert(ranking(Vector((0, 1, 0.5)), 0.5, 5) == Vector((0, 1, 0.5)))
+  }
+
+  test("ranking: con p igual a cero da el vector vacío") {
+    assert(ranking(Vector((0, 1, 0.9)), 0.0, 0) == Vector())
+  }
+
+  test("ranking: los empates se rompen por posición, sin importar el orden de llegada") {
+    val ms: Vector[Medicion] = Vector((1, 2, 0.5), (0, 2, 0.5), (0, 1, 0.5))
+    assert(ranking(ms, 0.0, 5) == Vector((0, 1, 0.5), (0, 2, 0.5), (1, 2, 0.5)))
+  }
+
+  //Pruebas detectarDirecto
+  val cX: Corpus = Vector(("a", Vector("x", "y", "z")), ("b", Vector("x", "y", "w")),
+    ("c", Vector("p", "q", "r")))
+  val cIguales: Corpus = Vector(("a", Vector("x", "y")), ("b", Vector("x", "y")),
+    ("c", Vector("x", "y")))
+  val cDistintos: Corpus = Vector(("a", Vector("x", "y")), ("b", Vector("p", "q")),
+    ("c", Vector("m", "n")))
+
+  test("detectarDirecto: un corpus vacío no reporta nada") {
+    assert(detectarDirecto(Vector(), 2, 0.1, 5) == Vector())
+  }
+
+  test("detectarDirecto: un corpus de un solo documento no reporta nada") {
+    assert(detectarDirecto(Vector(("a", Vector("x", "y"))), 2, 0.1, 5) == Vector())
+  }
+
+  test("detectarDirecto: solo reporta la pareja que comparte un fragmento") {
+    assert(detectarDirecto(cX, 2, 0.3, 5) == Vector((0, 1, 1.0 / 3.0)))
+  }
+
+  test("detectarDirecto: con documentos iguales trunca a p y desempata por posición") {
+    assert(detectarDirecto(cIguales, 2, 0.5, 2) == Vector((0, 1, 1.0), (0, 2, 1.0)))
+  }
+
+  test("detectarDirecto: sin fragmentos en común no reporta nada") {
+    assert(detectarDirecto(cDistintos, 2, 0.1, 5) == Vector())
+  }
+
+  //Pruebas detectarConIndice
+  test("detectarConIndice: un corpus vacío no reporta nada") {
+    assert(detectarConIndice(Vector(), 2, 0.1, 5) == Vector())
+  }
+
+  test("detectarConIndice: un corpus de un solo documento no reporta nada") {
+    assert(detectarConIndice(Vector(("a", Vector("x", "y"))), 2, 0.1, 5) == Vector())
+  }
+
+  test("detectarConIndice: solo reporta la pareja que comparte un fragmento") {
+    assert(detectarConIndice(cX, 2, 0.3, 5) == Vector((0, 1, 1.0 / 3.0)))
+    assert(detectarConIndice(cX, 2, 0.3, 5) == detectarDirecto(cX, 2, 0.3, 5))
+  }
+
+  test("detectarConIndice: con documentos iguales trunca a p y desempata por posición") {
+    assert(detectarConIndice(cIguales, 2, 0.5, 2) == Vector((0, 1, 1.0), (0, 2, 1.0)))
+  }
+
+  test("detectarConIndice: sin fragmentos en común no reporta nada") {
+    assert(detectarConIndice(cDistintos, 2, 0.1, 5) == Vector())
+  }
 }
