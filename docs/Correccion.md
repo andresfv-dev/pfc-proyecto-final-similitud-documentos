@@ -1,279 +1,542 @@
-# Ejemplo de informe de corrección
+# Informe de corrección
 
-Fundamentos de Programación Funcional y Concurrente.
-Documento realizado por el docente Juan Francisco Díaz.
+Para cada función se escribe primero su especificación, es decir, la función
+matemática $f$ que debe calcular. Después se argumenta que el programa $P_f$
+devuelve $f(a)$ para toda entrada $a$, y al final se listan los casos de
+prueba que lo comprueban.
 
-## 1. Argumentar la corrección de programas recursivos
+Notación:
 
-Sea $f : A \to B$ una función, y $A$ un conjunto definido recursivamente
-(recordar la definición de Matemáticas Discretas I), como por ejemplo los
-naturales o las listas.
+- Un vector se escribe $\langle x_0, x_1, \ldots, x_{n-1} \rangle$ y su
+  longitud $|v|$.
+- $\langle\rangle$ es el vector vacío, $x +: v$ agrega $x$ al frente y
+  $v :+ x$ agrega $x$ al final.
+- Si $ts = \langle w_0, \ldots, w_{t-1} \rangle$, el fragmento que empieza en
+  la posición $i$ es $F_i = \langle w_i, \ldots, w_{i+k-1} \rangle$.
 
-Sea $P_f$ un programa recursivo (lineal o en árbol) desarrollado en Scala (o en
-cualquier lenguaje de programación) hecho para calcular $f$:
+---
+
+## 1. `normalizar`
 
 ```scala
-def Pf(a: A): B = { // Pf recibe a de tipo A, y devuelve f(a) de tipo B
-  ...
+def normalizar(texto: String): Vector[String] = {
+  val minuscula  = texto.toLowerCase
+  val conEspacio = minuscula.map(char => if (char.isLetterOrDigit) char else ' ')
+  val divide     = conEspacio.split(' ')
+  val filtra     = divide.filter(letras => letras.nonEmpty)
+  filtra.toVector
 }
 ```
 
-¿Cómo argumentar que $P_f(a)$ siempre devuelve $f(a)$ como respuesta? Es decir,
-¿cómo argumentar que $P_f$ es correcto con respecto a su especificación?
+### Especificación
 
-La respuesta es sencilla: demostrando el siguiente teorema.
+Sea $s = \text{minúsculas}(\text{texto})$. Una **palabra** de $s$ es una
+secuencia máxima de caracteres consecutivos que son letras o dígitos (no se
+puede alargar ni a la izquierda ni a la derecha sin incluir un separador).
+Entonces
 
 ```math
-\forall a \in A : P_f(a) == f(a)
+f(\text{texto}) = \langle p_1, p_2, \ldots, p_m \rangle
 ```
 
-Cuando uno tiene que demostrar que algo se cumple para todos los elementos de
-un conjunto definido recursivamente, es natural usar inducción estructural. En
-términos prácticos, esto significa demostrar que:
+donde $p_1, \ldots, p_m$ son las palabras de $s$ en el orden en que aparecen.
 
-- Para cada valor básico $a$ de $A$, se tiene que $P_f(a) == f(a)$.
-- Para cada valor $a \in A$ construido recursivamente a partir de otro(s)
-  valor(es) $a' \in A$, se tiene que
-  $P_f(a') == f(a') \rightarrow P_f(a) == f(a)$. (Esta es la hipótesis de
-  inducción).
+### Argumento de corrección
 
-### Ejemplo: factorial recursivo
+`normalizar` no es recursiva: es una composición de cinco pasos. Se argumenta
+qué cumple el resultado de cada paso.
 
-Sea $f : \mathbb{N} \to \mathbb{N}$ la función que calcula el factorial de un
-número natural, es decir, $f(n) = n!$. Y sea $P_f$ el siguiente programa en
-Scala:
+**Paso 1.** `minuscula` $= s$, por definición de `toLowerCase`.
+
+**Paso 2.** Sea $\varphi(c) = c$ si $c$ es letra o dígito, y $\varphi(c) = $
+`' '` si no. `map` cumple, por inducción sobre la longitud de la cadena:
+
+```math
+\text{map}_\varphi(\text{""}) = \text{""} \qquad
+\text{map}_\varphi(c \cdot r) = \varphi(c) \cdot \text{map}_\varphi(r)
+```
+
+Entonces `conEspacio` $= \varphi(c_0)\varphi(c_1)\cdots\varphi(c_{n-1})$: tiene
+la misma longitud que $s$, deja en su lugar cada letra o dígito y cambia por
+espacio cada uno de los demás caracteres. Como las letras y dígitos no se
+mueven y todo lo demás quedó como espacio, las palabras de `conEspacio` son
+exactamente las palabras $p_1, \ldots, p_m$ de $s$, en el mismo orden, y entre
+dos palabras seguidas hay **al menos un** espacio.
+
+**Paso 3.** `split(' ')` parte la cadena en los trozos que quedan entre
+espacios consecutivos (y antes del primero y después del último), en orden, y
+quita las cadenas vacías del final. Cada trozo es:
+
+- una palabra $p_j$ completa, porque un trozo no contiene espacios y va de un
+  separador al siguiente, o
+- la cadena vacía `""`, cuando hay dos espacios seguidos o un espacio al
+  comienzo.
+
+Por lo tanto `divide` es la secuencia $p_1, \ldots, p_m$ con cadenas vacías
+intercaladas, y en el mismo orden.
+
+**Paso 4.** `filter` cumple, por inducción sobre la longitud del arreglo:
+
+```math
+\text{filter}_q(\langle\rangle) = \langle\rangle \qquad
+\text{filter}_q(x +: v) =
+\begin{cases}
+x +: \text{filter}_q(v) & \text{si } q(x) \\
+\text{filter}_q(v) & \text{si no}
+\end{cases}
+```
+
+Con $q(x) = x.\text{nonEmpty}$, el filtro quita exactamente las cadenas vacías
+y conserva el orden de las demás. Entonces
+`filtra` $= \langle p_1, \ldots, p_m \rangle$.
+
+**Paso 5.** `toVector` copia los elementos en el mismo orden.
+
+Concluimos que
+
+```math
+\forall\, \text{texto} : \text{normalizar}(\text{texto}) == f(\text{texto})
+```
+
+Un caso particular: si el texto no tiene ninguna letra ni dígito,
+`conEspacio` es solo espacios, `divide` solo tiene cadenas vacías y el
+resultado es $\langle\rangle$.
+
+### Casos de prueba
+
+| Prueba | Entrada | Resultado esperado | Qué comprueba |
+|---|---|---|---|
+| contrato | `"El Gato Duerme"` | `Vector("el", "gato", "duerme")` | minúsculas y separación por espacios |
+| propia | `""` | `Vector()` | texto vacío |
+| propia | `"¡¿... , ; !?"` | `Vector()` | texto sin letras ni dígitos: `divide` solo tiene cadenas vacías y el filtro las quita todas |
+| propia | `"¡Expecto Patronum!"` | `Vector("expecto", "patronum")` | el separador del comienzo deja una cadena vacía que el filtro quita |
+| propia | `"uno,,dos--tres"` | `Vector("uno", "dos", "tres")` | varios separadores seguidos no dejan palabras vacías |
+| propia | `"Harry tiene 11 AÑOS"` | `Vector("harry", "tiene", "11", "años")` | los dígitos y las letras con tilde se conservan |
+
+---
+
+## 2. `huella`
 
 ```scala
-def Pf(n: Int): Int = { // Pf recibe n de tipo Int, y devuelve n! de tipo Int
-  if (n == 0) 1 else n * Pf(n - 1)
+def huella(d: Documento, k: Int): Huella = {
+  val palabras = palabrasDoc(d)
+  val frags    = fragmentos(palabras, k)
+  frags.toSet
 }
 ```
 
-Vamos a demostrar que $\forall n \in \mathbb{N} : P_f(n) == n!$
+### Especificación
 
-**Caso base:** $n = 0$
-
-```math
-P_f(0) \rightarrow \text{if } (0 == 0)\ 1 \text{ else } 0 \ast P_f(-1) \rightarrow 1
-```
-
-Por otro lado, $f(0) = 0! = 1$. Entonces $P_f(0) == f(0)$.
-
-**Caso de inducción:** $n = k + 1$, $k \geq 0$. Hay que demostrar:
-$P_f(k) == f(k) \rightarrow P_f(k + 1) == f(k + 1)$
+Sea $d = (\text{id}, ts)$ con $ts = \langle w_0, \ldots, w_{t-1} \rangle$.
 
 ```math
-P_f(k+1) \rightarrow \text{if } (k+1 == 0)\ 1 \text{ else } (k+1) \ast P_f(k) \rightarrow (k+1) \ast P_f(k)
+f(d, k) = \{\, F_i \mid 0 \le i \le t - k \,\}
 ```
 
-Usando la hipótesis de inducción (HI):
+Es decir, el **conjunto** de los fragmentos de $k$ palabras consecutivas; si
+$t < k$, el conjunto vacío.
+
+### Argumento de corrección
+
+`huella` no es recursiva: llama a `palabrasDoc`, a `fragmentos` y a `toSet`.
+Se usa como hipótesis la especificación de `fragmentos`, cuya corrección se
+argumenta por aparte:
 
 ```math
-\rightarrow (k+1) \ast k! = (k+1)!
+\text{fragmentos}(ts, k) =
+\begin{cases}
+\langle F_0, F_1, \ldots, F_{t-k} \rangle & \text{si } t \ge k \\
+\langle\rangle & \text{si } t < k
+\end{cases}
 ```
 
-Por lo tanto, $P_f(k + 1) == f(k + 1)$.
+**Lema (`toSet`).** Para todo vector $v$, $\text{toSet}(v)$ es el conjunto de
+los elementos de $v$, y $|\text{toSet}(v)| \le |v|$.
 
-Concluimos por inducción que $\forall n \in \mathbb{N} : P_f(n) == n!$
+Por inducción sobre $|v|$, usando que $\text{toSet}(v :+ x) = \text{toSet}(v) \cup \{x\}$:
 
-### Ejemplo: el máximo de una lista
+- **Caso base:** $v = \langle\rangle$. $\text{toSet}(\langle\rangle) = \emptyset$,
+  que es el conjunto de elementos de $v$, y $|\emptyset| = 0 \le 0$.
+- **Caso de inducción:** supongamos que se cumple para $v$ (HI) y veamos
+  $v :+ x$.
 
-Sea $f : \text{List}[\mathbb{N}] \to \mathbb{N}$ la función que calcula el
-máximo de una lista de enteros positivos, no vacía. Y sea $P_f$ el siguiente
-programa en Scala:
+```math
+\text{toSet}(v :+ x) = \text{toSet}(v) \cup \{x\}
+\overset{HI}{=} \{\text{elementos de } v\} \cup \{x\}
+= \{\text{elementos de } v :+ x\}
+```
+
+```math
+|\text{toSet}(v) \cup \{x\}| \le |\text{toSet}(v)| + 1 \overset{HI}{\le} |v| + 1 = |v :+ x|
+```
+
+La desigualdad es estricta justo cuando $x$ ya estaba en $v$: un fragmento
+repetido no aumenta el tamaño del conjunto.
+
+**Corrección.** Por el modelo de sustitución:
+
+```math
+\text{huella}(d, k) \rightarrow \text{fragmentos}(ts, k).\text{toSet}
+```
+
+- Si $t \ge k$: $\rightarrow \text{toSet}(\langle F_0, \ldots, F_{t-k} \rangle) = \{F_0, \ldots, F_{t-k}\} = f(d, k)$.
+- Si $t < k$: $\rightarrow \text{toSet}(\langle\rangle) = \emptyset = f(d, k)$.
+
+Concluimos que $\forall d, k : \text{huella}(d, k) == f(d, k)$.
+
+### Propiedad: la huella no supera los $t - k + 1$ fragmentos
+
+```math
+|\text{huella}(d, k)| \le \max(0,\ t - k + 1)
+```
+
+Si $t \ge k$, por el lema,
+$|\text{huella}(d, k)| = |\text{toSet}(\text{fragmentos}(ts, k))| \le |\text{fragmentos}(ts, k)| = t - k + 1$.
+Si $t < k$, la huella es vacía y tiene tamaño $0$.
+
+La igualdad se da cuando no hay fragmentos repetidos. En el ejemplo 1 del
+enunciado, $d_0$ tiene $t = 6$ palabras y $k = 3$, así que tiene
+$6 - 3 + 1 = 4$ fragmentos, todos distintos, y la huella tiene tamaño 4.
+
+### Casos de prueba
+
+| Prueba | Entrada | Resultado esperado | Qué comprueba |
+|---|---|---|---|
+| contrato | ejemplo 1, $k = 3$ | tamaños 4, 4 y 3 | la cota $t - k + 1$ con igualdad |
+| propia | `("r", Vector(a, b, a, b))`, $k = 2$ | `Set([a,b], [b,a])` | un fragmento repetido cuenta una vez (3 fragmentos, huella de 2) |
+| propia | `("corto", Vector(hola))`, $k = 3$ | `Set()` | caso $t < k$ |
+| propia | `("vacio", Vector())`, $k = 2$ | `Set()` | documento vacío |
+| propia | `("igual", Vector(x, x, x, x))`, $k = 2$ | `Set([x,x])` | todos los fragmentos iguales: 3 fragmentos, huella de 1 |
+| propia | `normalizar("Hola, MUNDO; hola!")`, $k = 2$ | `Set([hola,mundo], [mundo,hola])` | funciona sobre un texto normalizado |
+
+---
+
+## 3. `huellas`
 
 ```scala
-def maxLin(l: List[Int]): Int = {
-  if (l.tail.isEmpty) l.head
-  else math.max(maxLin(l.tail), l.head)
+def huellas(c: Corpus, k: Int): Vector[Huella] =
+  c.map(documento => huella(documento, k))
+```
+
+### Especificación
+
+Para $c = \langle d_0, d_1, \ldots, d_{n-1} \rangle$:
+
+```math
+f(c, k) = \langle \text{huella}(d_0, k), \text{huella}(d_1, k), \ldots, \text{huella}(d_{n-1}, k) \rangle
+```
+
+Una huella por documento, en el mismo orden del corpus.
+
+### Argumento de corrección
+
+Sea $g(d) = \text{huella}(d, k)$. `map` cumple:
+
+```math
+\text{map}_g(\langle\rangle) = \langle\rangle \qquad
+\text{map}_g(c :+ d) = \text{map}_g(c) :+ g(d)
+```
+
+Demostramos por inducción sobre $n = |c|$ que
+$\text{huellas}(c, k) == f(c, k)$.
+
+**Caso base:** $n = 0$.
+
+```math
+\text{huellas}(\langle\rangle, k) \rightarrow \text{map}_g(\langle\rangle) \rightarrow \langle\rangle = f(\langle\rangle, k)
+```
+
+**Caso de inducción:** $n = m + 1$, $m \ge 0$. Sea
+$c = \langle d_0, \ldots, d_{m-1} \rangle$ y supongamos
+$\text{huellas}(c, k) == f(c, k)$ (HI).
+
+```math
+\text{huellas}(c :+ d_m, k) \rightarrow \text{map}_g(c :+ d_m) \rightarrow \text{map}_g(c) :+ g(d_m)
+```
+
+```math
+\overset{HI}{=} \langle \text{huella}(d_0, k), \ldots, \text{huella}(d_{m-1}, k) \rangle :+ \text{huella}(d_m, k) = f(c :+ d_m, k)
+```
+
+Concluimos por inducción que $\forall c, k : \text{huellas}(c, k) == f(c, k)$.
+
+De aquí salen las dos propiedades que usan las demás funciones:
+
+- $|\text{huellas}(c, k)| = |c|$.
+- $\text{huellas}(c, k)(i) = \text{huella}(c(i), k)$ para todo $0 \le i < |c|$.
+  La posición $i$ del vector de huellas identifica al documento $i$, que es lo
+  que usan `indiceInvertido` y `similitudes`.
+
+### Casos de prueba
+
+| Prueba | Entrada | Resultado esperado | Qué comprueba |
+|---|---|---|---|
+| contrato | corpus del ejemplo 1, $k = 3$ | longitud 3 | una huella por documento |
+| propia | `Vector()`, $k = 2$ | `Vector()` | caso base: corpus vacío |
+| propia | `(a, [x,y])`, `(b, [y,z])`, $k = 2$ | `Vector({[x,y]}, {[y,z]})` | conserva el orden del corpus |
+| propia | `(a, [uno,dos,tres])`, `(b, [cuatro])`, $k = 2$ | `hs(i) == huella(c(i), 2)` | la posición $i$ es la huella del documento $i$ |
+| propia | `(a, [p,q,r])`, `(b, [p])`, $k = 2$ | `hs(1)` vacía | un documento corto deja su huella vacía sin afectar a los demás |
+| propia | `normalizar("El sol sale")`, `normalizar("el SOL sale")`, $k = 2$ | `hs(0) == hs(1)` | documentos iguales después de normalizar tienen la misma huella |
+
+---
+
+## 9. `indiceInvertido`
+
+```scala
+def indiceInvertido(hs: Vector[Huella]): Indice = {
+  val conPosicion = hs.zipWithIndex
+  val entradas    = conPosicion.flatMap(par => par._1.toVector.map(fragmento => (fragmento, par._2)))
+  val agrupado    = entradas.groupBy(entrada => entrada._1)
+  agrupado.map(grupo => (grupo._1, grupo._2.map(entrada => entrada._2).toSet))
 }
 ```
 
-Demostraremos que:
+### Especificación
+
+Sea $hs = \langle H_0, \ldots, H_{n-1} \rangle$ el vector de huellas. El índice
+es el mapa que a cada fragmento $F$ que aparece en alguna huella le asocia el
+conjunto de las posiciones donde aparece:
 
 ```math
-\forall n \in \mathbb{N} \setminus \{0\} : P_f(\text{List}(a_1, a_2, \ldots, a_n)) == f(\text{List}(a_1, a_2, \ldots, a_n))
+f(hs)(F) = \{\, i \mid 0 \le i < n,\ F \in H_i \,\} \qquad
+\text{para todo } F \in H_0 \cup \cdots \cup H_{n-1}
 ```
 
-**Caso base:** $n = 1$
+Un fragmento que no está en ninguna huella no es clave del mapa.
+
+### Argumento de corrección
+
+`indiceInvertido` no es recursiva: es una composición de cuatro pasos.
+
+**Paso 1.** `conPosicion` $= \langle (H_0, 0), \ldots, (H_{n-1}, n-1) \rangle$, por
+definición de `zipWithIndex`.
+
+**Paso 2.** Para cada $(H_i, i)$, `H_i.toVector.map(F => (F, i))` produce la
+pareja $(F, i)$ por cada $F \in H_i$, una sola vez, porque $H_i$ es un conjunto.
+`flatMap` concatena esos vectores, así que
 
 ```math
-P_f(\text{List}(a_1)) \rightarrow \text{if } \text{List}(a_1).\text{tail.isEmpty then } \text{List}(a_1).\text{head else } \ldots \rightarrow \text{List}(a_1).\text{head} \rightarrow a_1
+\text{entradas} = \{\, (F, i) \mid F \in H_i \,\}
 ```
 
-Por otro lado, $f(\text{List}(a_1)) = a_1$. Entonces
-$P_f(\text{List}(a_1)) == f(\text{List}(a_1))$.
+como colección, sin repetidos. Cada entrada depende solo de $F$ y de $i$, no del
+orden en que se recorra.
 
-**Caso de inducción:** $n = k + 1$, $k \geq 1$. Se debe demostrar:
+**Paso 3.** `groupBy(_._1)` deja una clave por cada $F$ que aparece como primera
+componente de alguna entrada, es decir, por cada $F \in \bigcup H_i$, y asocia a
+$F$ todas las entradas $(F, i)$. No crea claves para fragmentos que no están.
 
-```math
-P_f(\text{List}(b_1, b_2, \ldots, b_k)) == f(\text{List}(b_1, b_2, \ldots, b_k)) \rightarrow P_f(\text{List}(a_1, a_2, \ldots, a_{k+1})) == f(\text{List}(a_1, a_2, \ldots, a_{k+1}))
-```
+**Paso 4.** Para cada grupo, `map(_._2)` deja las posiciones de sus entradas y
+`toSet` las vuelve conjunto. Para la clave $F$ queda
+$\{\, i \mid (F, i) \in \text{entradas} \,\} = \{\, i \mid F \in H_i \,\} = f(hs)(F)$.
 
-Empecemos por calcular qué devuelve $P_f$ usando el modelo de sustitución:
+Concluimos que $\forall hs : \text{indiceInvertido}(hs) == f(hs)$.
 
-```math
-P_f(L) \rightarrow \text{if } L.\text{tail.isEmpty then } L.\text{head else math.max}(P_f(L.\text{tail}), L.\text{head})
-```
+Como el resultado es una unión de entradas que cada una depende solo de
+$(F, i)$, y la unión de conjuntos es asociativa y conmutativa, **no depende del
+orden** en que se recorran las huellas. Es el argumento que después justifica
+que una versión paralela dé lo mismo, siempre que conserve las posiciones.
 
-```math
-\rightarrow \text{math.max}(P_f(\text{List}(a_2, \ldots, a_{k+1})), a_1)
-```
+### Casos de prueba
 
-Sea $b = P_f(\text{List}(a_2, \ldots, a_{k+1}))$; por la hipótesis de
-inducción, $b = f(\text{List}(a_2, \ldots, a_{k+1}))$. Hay dos posibilidades:
+| Prueba | Entrada | Resultado esperado | Qué comprueba |
+|---|---|---|---|
+| contrato | huellas del ejemplo 1, $k = 3$ | `idx([el,gato,duerme]) == {0, 1}` | un fragmento compartido por dos documentos |
+| propia | `Vector()` | `Map()` | caso base: sin huellas |
+| propia | una huella `{[a,b], [b,c]}` | `[a,b] → {0}`, `[b,c] → {0}` | un solo documento |
+| propia | tres huellas `{[x]}` | `[x] → {0,1,2}` | un fragmento en todos los documentos |
+| propia | `Vector(Set(), Set([a]))` | `Map([a] → {1})` | una huella vacía no aporta entradas y las posiciones no se corren |
+| propia | `{[a]}`, `{[b]}`, `{[a],[b]}` | `[a] → {0,2}`, `[b] → {1,2}`, 2 claves | cada fragmento queda con los documentos donde aparece |
 
-- Si $\text{math.max}(b, a_1) = b$, entonces $b \geq a_1$ y
- $b == f(\text{List}(a_1, a_2, \ldots, a_{k+1}))$.
-- Si $\text{math.max}(b, a_1) = a_1$, entonces $a_1 \geq b$ y
- $a_1 == f(\text{List}(a_1, a_2, \ldots, a_{k+1}))$.
+---
 
-Por lo tanto, $P_f(L) == f(L)$.
-
-Concluimos por inducción que:
-
-```math
-\forall n \in \mathbb{N} \setminus \{0\} : P_f(\text{List}(a_1, a_2, \ldots, a_n)) == f(\text{List}(a_1, a_2, \ldots, a_n))
-```
-
-## 2. Argumentar la corrección de programas iterativos
-
-Para argumentar la corrección de programas iterativos, se debe formalizar cómo
-es la iteración. Esto implica definir:
-
-- Cómo se representa un estado de la iteración, $s$.
-- Cuál es el estado inicial, $s_0$.
-- Cuál es el estado final (o cómo se reconoce que un estado es final): $s_f$.
-- Qué condición (o predicado) cumple todo estado: $\text{Inv}(s)$ (invariante
-  de la iteración).
-- El mecanismo para pasar de un estado al siguiente: $\text{transformar}(s)$.
-  Si $s_i$ es el estado $i$, entonces $\text{transformar}(s_i) = s_{i+1}$.
-
-Un programa iterativo tiene la siguiente forma:
+## 10. `parejasCandidatas`
 
 ```scala
-def Pf(a: A): B = { // Pf recibe a de tipo A, y devuelve f(a) de tipo B
-  def Pf_iter(s: Estado): B =
-    if (esFinal(s)) respuesta(s) else Pf_iter(transformar(s))
-  Pf_iter(s0)
+def parejasCandidatas(idx: Indice): Vector[Pareja] = {
+  val conjuntos = idx.values.toVector.map(docs => docs.toVector.sorted)
+  val todas     = conjuntos.flatMap(docs => docs.combinations(2).map(par => (par(0), par(1))).toVector)
+  todas.distinct.sorted
 }
 ```
 
-Demostración de corrección:
+### Especificación
 
-- $\text{Inv}(s_0)$: el estado inicial cumple la condición invariante.
-- Si $(s_i \neq s_f \land \text{Inv}(s_i)) \rightarrow \text{Inv}(\text{transformar}(s_i))$:
-  el nuevo estado cumple la condición invariante si el estado anterior la
-  cumplía.
-- De lo anterior se concluye $\text{Inv}(s_f)$, es decir, el estado final
-  cumple la condición invariante. Luego,
-  $\text{Inv}(s_f) \rightarrow \text{respuesta}(s_f) == f(a)$.
-- Finalmente, demostrar que siempre se llega al estado final $s_f$. Esto
-  implica que
-  $P_f(a) == \text{iter}(s_0) == \text{respuesta}(s_f) == f(a)$.
+```math
+f(idx) = \{\, (i, j) \mid i < j,\ \exists F : i \in idx(F) \wedge j \in idx(F) \,\}
+```
 
-### Ejemplo: factorial iterativo
+como vector sin repetidos y en orden ascendente (primero por $i$, luego por $j$).
 
-Considere el siguiente programa iterativo en Scala para calcular la función
-factorial:
+### Argumento de corrección
+
+**Paso 1.** Para cada $D = idx(F)$, `docs.toVector.sorted` es el vector de sus
+elementos en orden ascendente, sin repetidos porque $D$ es un conjunto.
+
+**Paso 2.** `combinations(2)` entrega cada subconjunto de dos elementos del
+vector una sola vez y conserva el orden relativo, así que en cada
+$\text{par} = \langle a, b \rangle$ se cumple $a < b$, y
+`(par(0), par(1))` $= (a, b)$ con $a < b$. Por lo tanto `todas` contiene
+exactamente las parejas $(i, j)$ con $i < j$ y $i, j \in idx(F)$, para algún $F$.
+Si $|D| < 2$ no hay combinaciones y ese fragmento no aporta parejas.
+
+**Paso 3.** Una pareja puede salir de varios fragmentos y aparece una vez por
+cada uno. `distinct` deja una sola, sin cambiar el conjunto de parejas.
+
+**Paso 4.** `sorted` ordena las parejas con el orden lexicográfico de
+`(Int, Int)`.
+
+Concluimos que $\forall idx : \text{parejasCandidatas}(idx) == f(idx)$. Que el
+resultado no dependa del orden de las entradas del `Map` (que no está definido)
+lo garantiza el `sorted` final.
+
+### Casos de prueba
+
+| Prueba | Entrada | Resultado esperado | Qué comprueba |
+|---|---|---|---|
+| contrato | índice del ejemplo 2, $k = 3$ | `Vector((0,1), (2,3))` | dos de las seis parejas son candidatas |
+| propia | `Map()` | `Vector()` | índice vacío |
+| propia | `Map([a] → {0})` | `Vector()` | un fragmento en un solo documento no forma pareja |
+| propia | `Map([x] → {2,0,1})` | `Vector((0,1), (0,2), (1,2))` | tres documentos dan tres parejas con $i < j$ y en orden |
+| propia | `[a] → {0,1}`, `[b] → {0,1}` | `Vector((0,1))` | la pareja que sale de dos fragmentos cuenta una vez |
+| propia | `[a] → {2,3}`, `[b] → {0,1}` | `Vector((0,1), (2,3))` | el resultado sale ordenado |
+
+---
+
+## 11. `ranking`
 
 ```scala
-def Pf(n: Int): Int = { // Pf recibe n de tipo Int, y devuelve n! de tipo Int
-  def Pf_iter(i: Int, n: Int, ac: Int): Int =
-    if (i > n) ac else Pf_iter(i + 1, n, i * ac)
-  Pf_iter(1, n, 1)
+def ranking(ss: Vector[Medicion], umbral: Double, p: Int): Vector[Medicion] = {
+  val sobreUmbral = ss.filter(medicion => medicion._3 >= umbral)
+  val ordenadas   = sobreUmbral.sortBy(medicion => (-medicion._3, medicion._1, medicion._2))
+  ordenadas.take(p)
 }
 ```
 
-Este programa implementa el siguiente proceso iterativo:
+### Especificación
 
-- Un estado $s = (i, n, ac)$.
-- El estado inicial es $s_0 = (1, n, 1)$.
-- $(i, n, ac)$ es final si $i > n$, o lo que es lo mismo, si $i = n + 1$.
-- La invariante de ciclo es
-  $\text{Inv}(i, n, ac) \equiv i \leq n + 1 \land ac = (i-1)!$.
-  La invariante de ciclo es una relación que SIEMPRE se cumple en el ciclo.
-- $\text{transformar}((i, n, ac)) = (i+1, n, i \ast ac)$.
-
-Ahora, demostramos los puntos mencionados:
-
-**1.** $\text{Inv}(s_0)$: el estado inicial cumple la condición invariante.
+Sea $\tau$ el umbral. Se toman las mediciones $(i, j, s)$ con $s \ge \tau$, se
+ordenan por la clave $(-s, i, j)$ ascendente (mayor similitud primero y, a
+igual similitud, por posición) y se devuelven las primeras $p$:
 
 ```math
-s_0 = (1, n, 1) \implies 1 \leq n + 1 \land 1 = 0!
+f(ss, \tau, p) = \text{take}_p\bigl(\text{ord}\{\, (i, j, s) \in ss \mid s \ge \tau \,\}\bigr)
 ```
 
-**2.** La invariante se mantiene con la transformación de estados,
-$(s_i \neq s_f \land \text{Inv}(s_i)) \rightarrow \text{Inv}(\text{transformar}(s_i))$:
+### Argumento de corrección
 
-1. Primer cambio, $i = i + 1$, lo que implica $ac = ((i+1) - 1)! = i!$.
-2. Segundo cambio, $ac = i \ast ac$, entonces $ac = (i - 1)! \ast i = i!$.
-3. Como se puede ver en ambos cambios indicados en la transformación, la
-   invariante se mantiene.
+**Paso 1.** `filter` conserva exactamente las mediciones con $s \ge \tau$ y su
+orden relativo (por inducción sobre $|ss|$, igual que el filtro de `normalizar`).
 
-**3.** $\text{Inv}(s_f) \rightarrow \text{respuesta}(s_f) == f(a)$
+**Paso 2.** `sortBy` ordena por la clave $(-s, i, j)$. Como cada pareja se mide
+una sola vez, dos mediciones distintas tienen distinta pareja $(i, j)$ y sus
+claves son distintas y el orden es **total**: el resultado es único y no depende del orden
+en que llegaron. Si $s_1 > s_2$ entonces $-s_1 < -s_2$, de modo que la mayor
+similitud queda primero; si $s_1 = s_2$ decide $(i, j)$.
 
-```math
-(n + 1 \leq n + 1) \land ac = ((n+1)-1)! \rightarrow ac == n!
-```
+**Paso 3.** `take(p)` devuelve las primeras $\min(p, |\text{ordenadas}|)$
+mediciones: si hay menos de $p$ devuelve todas, y con $p = 0$ el vector vacío.
 
-**4.** En cada paso, la componente $i$ del estado incrementa, acercándose a $n+1$.
-Después de $n$ iteraciones, se alcanza $n+1$.
+Concluimos que $\forall ss, \tau, p : \text{ranking}(ss, \tau, p) == f(ss, \tau, p)$.
+El umbral es inclusivo ($s \ge \tau$), como en el enunciado.
 
-Esto implica que $P_f(n) == \text{iter}(1, n, 1) == n!$
+### Casos de prueba
 
-### Ejemplo: el máximo de una lista
+| Prueba | Entrada | Resultado esperado | Qué comprueba |
+|---|---|---|---|
+| contrato | `(0,1,0.4)`, `(0,2,0.1)`, `(1,2,0.9)`, $\tau = 0$ | similitudes `0.9, 0.4, 0.1`; con $p = 2$, longitud 2 | orden descendente y truncado |
+| propia | `Vector()` | `Vector()` | sin mediciones |
+| propia | `(0,1,0.4)`, $\tau = 0.5$ | `Vector()` | un umbral mayor que todas las similitudes |
+| propia | `(0,1,0.5)`, $\tau = 0.5$ | `Vector((0,1,0.5))` | el umbral es inclusivo |
+| propia | `(0,1,0.9)`, $p = 0$ | `Vector()` | $p = 0$ |
+| propia | `(1,2,0.5)`, `(0,2,0.5)`, `(0,1,0.5)` | `(0,1,0.5)`, `(0,2,0.5)`, `(1,2,0.5)` | los empates se rompen por posición, sin importar el orden de llegada |
 
-Se desea calcular el máximo de una lista de enteros positivos, no vacía. Sea
-$f : \text{List}[\mathbb{N}] \to \mathbb{N}$ la función que calcula ese valor.
-Y sea $P_f$ el siguiente programa en Scala:
+---
+
+## 12. `detectarDirecto` y `detectarConIndice`
 
 ```scala
-def maxIt(l: List[Int]): Int = {
-  def maxAux(max: Int, l: List[Int]): Int = {
-    if (l.isEmpty) max
-    else maxAux(math.max(max, l.head), l.tail)
-  }
-  maxAux(l.head, l.tail)
+def detectarDirecto(c: Corpus, k: Int, umbral: Double, p: Int): Vector[Medicion] = {
+  val hs         = huellas(c, k)
+  val todas      = parejas(c.length)
+  val mediciones = similitudes(hs, todas)
+  ranking(mediciones, umbral, p)
+}
+
+def detectarConIndice(c: Corpus, k: Int, umbral: Double, p: Int): Vector[Medicion] = {
+  val hs         = huellas(c, k)
+  val idx        = indiceInvertido(hs)
+  val candidatas = parejasCandidatas(idx)
+  val mediciones = similitudes(hs, candidatas)
+  ranking(mediciones, umbral, p)
 }
 ```
 
-Este programa implementa el siguiente proceso iterativo:
+### Especificación
 
-- Un estado $s = (max, l)$ donde $l = \text{List}(a_i, a_{i+1}, \ldots, a_k)$
-  es una cola de $L$.
-- El estado inicial es
-  $s_0 = (L.\text{head}, L.\text{tail}) = (a_1, \text{List}(a_2, \ldots, a_k))$.
-- $s = (max, l)$ es final si $l$ es vacía.
-- $\text{Inv}(max, l) \equiv l = \text{List}(a_i, a_{i+1}, \ldots, a_k) \land max = f(\text{List}(a_1, a_2, \ldots, a_{i-1}))$.
-- $\text{transformar}((max, l)) = (nmax, l.\text{tail})$ donde $nmax = max$ si
-  $max \geq l.\text{head}$, y $nmax = l.\text{head}$ si no.
-
-Demostración de los puntos:
-
-**1.** $\text{Inv}(s_0)$: el estado inicial cumple la condición invariante.
+Sea $J(i, j) = \text{jaccard}(H_i, H_j)$ con $H = \text{huellas}(c, k)$ y sea
+$P$ un conjunto de parejas. Ambas funciones devuelven
 
 ```math
-s_0 = (a_1, \text{List}(a_2, \ldots, a_k)) \implies a_1 = f(\text{List}(a_1))
+\text{ranking}(\{\, (i, j, J(i, j)) \mid (i, j) \in P \,\},\ \tau,\ p)
 ```
 
-**2.** $(s_i \neq s_f \land \text{Inv}(s_i)) \rightarrow \text{Inv}(\text{transformar}(s_i))$
+con $P = \{\, (i, j) \mid i < j \,\}$ en `detectarDirecto` y $P$ = las parejas
+candidatas en `detectarConIndice`.
+
+### Argumento de corrección
+
+Ambas son composición de funciones ya argumentadas, así que la corrección sale
+del modelo de sustitución: `huellas`, `parejas`, `similitudes`, `indiceInvertido`,
+`parejasCandidatas` y `ranking` cumplen sus especificaciones, y cada
+`detectar…` pasa el resultado de una a la siguiente. En `detectarDirecto`
+$P$ es el resultado de `parejas(n)`; en `detectarConIndice`, el de
+`parejasCandidatas(idx)`.
+
+### Propiedad: una pareja que no es candidata tiene similitud cero
+
+Si $(i, j)$ no es candidata, ningún fragmento $F$ cumple $i, j \in idx(F)$, es
+decir, ningún $F$ está a la vez en $H_i$ y en $H_j$. Entonces
+$H_i \cap H_j = \emptyset$ y
 
 ```math
-\neg\, l.\text{isEmpty} \land l = \text{List}(a_i, a_{i+1}, \ldots, a_k) \land max = f(\text{List}(a_1, a_2, \ldots, a_{i-1}))
+J(i, j) = \frac{|H_i \cap H_j|}{|H_i \cup H_j|} = \frac{0}{|H_i \cup H_j|} = 0
 ```
+
+(y si la unión es vacía, `jaccard` devuelve $0$ sin dividir).
+
+### Propiedad: las dos soluciones dan el mismo ranking
+
+Sea $\tau > 0$. Las mediciones que pasan el filtro de `ranking` son las de
+similitud $\ge \tau > 0$.
+
+- En `detectarDirecto` son las de las parejas $(i, j)$ con $J(i, j) \ge \tau$.
+- Una pareja con $J(i, j) > 0$ es candidata (por la propiedad anterior), así que
+  `detectarConIndice` también la mide, y con el mismo valor, porque usa las
+  mismas huellas y el mismo `jaccard`. Las no candidatas valen $0 < \tau$ y la
+  directa también las descarta.
+
+Entonces el conjunto de mediciones que llega a la parte de ordenar y truncar es
+el mismo. Como `ranking` tiene un orden total (ver 11), su resultado depende
+solo de ese conjunto y no del orden en que llegó. Concluimos que
 
 ```math
-\rightarrow l.\text{tail} = \text{List}(a_{i+1}, \ldots, a_k) \land nmax = f(\text{List}(a_1, \ldots, a_i))
+\tau > 0 \implies \text{detectarDirecto}(c, k, \tau, p) == \text{detectarConIndice}(c, k, \tau, p)
 ```
 
-**3.** $\text{Inv}(s_f) \rightarrow \text{respuesta}(s_f) == f(a)$
+Con $\tau = 0$ no es así: la directa incluye parejas de similitud $0$ que la del
+índice nunca mide. Por eso las pruebas usan $\tau > 0$.
 
-```math
-\text{Inv}((max, \text{List}())) \rightarrow max = f(\text{List}(a_1, \ldots, a_k))
-```
+### Casos de prueba
 
-**4.** En cada paso, la lista $l$ se reduce, acercándose a ser vacía. Después de
-$k$ iteraciones, $l = \text{List}()$.
+Con `detectarDirecto` y con `detectarConIndice`, cada una con sus cinco:
 
-Esto implica que $P_f(L) == \text{maxAux}(L.\text{head}, L.\text{tail}) == f(L)$
+| Prueba | Entrada | Resultado esperado | Qué comprueba |
+|---|---|---|---|
+| contrato | ejemplo 2, $k = 3$, $\tau = 0.3$, $p = 5$ | `(0,1)` con $0.75$ y `(2,3)` con $0.5$ | el resultado del enunciado |
+| contrato | ejemplos 1 y 2 | directa $==$ con índice | las dos soluciones coinciden |
+| propia | `Vector()` | `Vector()` | corpus vacío |
+| propia | un solo documento | `Vector()` | no hay parejas |
+| propia | `[x,y,z]`, `[x,y,w]`, `[p,q,r]`, $k = 2$, $\tau = 0.3$ | `Vector((0,1,1/3))` | solo la pareja con un fragmento en común (en la del índice, además, `==` a la directa) |
+| propia | tres documentos `[x,y]`, $k = 2$, $\tau = 0.5$, $p = 2$ | `Vector((0,1,1.0), (0,2,1.0))` | trunca a $p$ y desempata por posición |
+| propia | `[x,y]`, `[p,q]`, `[m,n]`, $k = 2$, $\tau = 0.1$ | `Vector()` | sin fragmentos en común no se reporta nada |
