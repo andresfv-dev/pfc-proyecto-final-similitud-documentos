@@ -280,6 +280,126 @@ De aquí salen las dos propiedades que usan las demás funciones:
 
 ---
 
+## 6. `jaccard`
+
+```scala
+def jaccard(h1: Huella, h2: Huella): Double = {
+  val comunes = h1.intersect(h2)
+  val unidos = h1.union(h2)
+  if (unidos.isEmpty) 0.0
+  else comunes.size.toDouble / unidos.size
+}
+```
+
+### Especificación
+
+```math
+J(h_1,h_2) = \begin{cases}
+0 & \text{si } h_1 \cup h_2 = \emptyset \\
+\dfrac{|h_1 \cap h_2|}{|h_1 \cup h_2|} & \text{si no}
+\end{cases}
+```
+
+### Argumento de corrección
+
+`intersect` deja los fragmentos que están en las dos huellas y `union`
+reúne los que aparecen en al menos una, sin repetirlos. Si la unión queda
+vacía, las dos huellas eran vacías y se devuelve `0.0` sin dividir.
+En el otro caso se dividen los tamaños. El `toDouble` evita la división
+entera: por ejemplo, un fragmento común de cuatro da `0.25`, no `0`.
+
+### Casos de prueba
+
+| Prueba | Entrada | Resultado esperado | Qué comprueba |
+|---|---|---|---|
+| contrato | ejemplo 2, con $k = 3$ | `0.75` y `0.5` | las dos comparaciones del ejemplo |
+| propia | dos huellas vacías | `0.0` | no divide por cero |
+| propia | huella vacía y huella con `[sol]` | `0.0` | no hay fragmentos en común |
+| propia | huella con `[sol]` y huella con `[luna]` | `0.0` | dos huellas no vacías pueden no coincidir |
+| propia | dos huellas iguales y no vacías | `1.0` | todos los fragmentos coinciden |
+| propia | `{[informe, final], [costos, estimados]}` y `{[informe, final], [ventas, mensuales], [saldo, pendiente]}` | `0.25` | hay un fragmento común y cuatro distintos en la unión |
+
+---
+
+## 7. `parejas`
+
+```scala
+def parejas(n: Int): Vector[Pareja] = {
+  for {
+    primera <- (0 until n).toVector
+    segunda <- (primera + 1) until n
+  } yield (primera, segunda)
+}
+```
+
+### Especificación
+
+Para $n$ documentos se devuelven las parejas $(i,j)$ que cumplen
+$0 \le i < j < n$, ordenadas primero por $i$ y después por $j$.
+
+### Argumento de corrección
+
+El primer rango pasa por cada posición $i$ desde $0$ hasta $n-1$. Para
+cada una, el segundo rango empieza en $i+1$ y termina antes de $n$. Así
+no salen parejas de un documento consigo mismo ni parejas al revés.
+Cada pareja válida aparece una vez porque sus dos posiciones se recorren
+una sola vez en esos rangos. Como ambos rangos avanzan de menor a mayor,
+las parejas salen en el orden pedido.
+
+Si $n$ es $0$ o $1$ no se produce ninguna pareja. Para $n \ge 2$ se
+producen $n-1$ con la primera posición $0$, luego $n-2$ con la primera
+posición $1$, y así hasta tener $n(n-1)/2$ en total.
+
+### Casos de prueba
+
+| Prueba | Entrada | Resultado esperado | Qué comprueba |
+|---|---|---|---|
+| contrato | `n = 5` | 10 parejas | el total es $n(n-1)/2$ |
+| propia | `n = 0` | `Vector()` | no hay documentos |
+| propia | `n = 1` | `Vector()` | un documento no se compara consigo mismo |
+| propia | `n = 2` | `Vector((0,1))` | sale una sola pareja |
+| propia | `n = 4` | `Vector((0,1), (0,2), (0,3), (1,2), (1,3), (2,3))` | orden de las parejas |
+| propia | `n = 6`, tomando las parejas con segunda posición `5` | `Vector((0,5), (1,5), (2,5), (3,5), (4,5))` | el último documento aparece con todos los anteriores |
+
+---
+
+## 8. `similitudes`
+
+```scala
+def similitudes(hs: Vector[Huella], ps: Vector[Pareja]): Vector[Medicion] = {
+  ps.map { case (primera, segunda) =>
+    val similitud = jaccard(hs(primera), hs(segunda))
+    (primera, segunda, similitud)
+  }
+}
+```
+
+### Especificación
+
+Por cada pareja $(i,j)$ de `ps`, con índices válidos en `hs`, se devuelve
+$(i,j,J(hs_i,hs_j))$. Las mediciones quedan en el mismo orden de `ps`.
+
+### Argumento de corrección
+
+El `map` recorre `ps` sin cambiar su orden. Con cada pareja, `hs(primera)`
+y `hs(segunda)` buscan las dos huellas y `jaccard` calcula el valor que
+va en la tercera posición. Como el `map` produce un resultado por cada
+entrada, también quedan las mediciones que dan `0.0`. Si `ps` está vacío,
+no se llama a `jaccard` y se devuelve un vector vacío.
+
+### Casos de prueba
+
+| Prueba | Entrada | Resultado esperado | Qué comprueba |
+|---|---|---|---|
+| contrato | huellas y parejas del ejemplo 1, con $k = 3$ | valores `1/3`, `0.0` y `0.0` | las tres mediciones del ejemplo |
+| propia | huellas del informe, sin parejas pedidas | `Vector()` | no compara si no se pide ninguna pareja |
+| propia | huellas de las recetas, pareja `(0,2)` | `Vector((0,2,0.5))` | solo compara los documentos indicados |
+| propia | huellas de los avisos, parejas `(1,2)` y `(0,1)` | `Vector((1,2,1.0), (0,1,0.5))` | respeta el orden de entrada |
+| propia | huellas de los menús, parejas `(0,1)`, `(0,2)` y `(2,3)` | `Vector((0,1,1.0), (0,2,0.0), (2,3,0.5))` | incluye la medición de cero |
+| propia | dos títulos que dejan huellas vacías, pareja `(0,1)` | `Vector((0,1,0.0))` | medir huellas vacías da cero, no un vector vacío |
+
+---
+
 ## 9. `indiceInvertido`
 
 ```scala
