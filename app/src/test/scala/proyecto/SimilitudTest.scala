@@ -216,4 +216,25 @@ class SimilitudTest extends AnyFunSuite {
   test("parejas: el sexto documento se compara con todos los anteriores") {
     assert(parejas(6).filter(_._2 == 5) == Vector((0, 5), (1, 5), (2, 5), (3, 5), (4, 5)))
   }
+
+  //Pruebas normalizar
+  test("normalizar: el texto vacío da el vector vacío") {
+    assert(normalizar("") == Vector())
+  }
+
+  test("normalizar: un texto sin letras ni dígitos da el vector vacío") {
+    assert(normalizar("¡¿... , ; !?") == Vector())
+  }
+
+  test("normalizar: un separador al comienzo no deja palabra vacía") {
+    assert(normalizar("¡Expecto Patronum!") == Vector("expecto", "patronum"))
+  }
+
+  test("normalizar: varios separadores seguidos cuentan como uno") {
+    assert(normalizar("uno,,dos--tres") == Vector("uno", "dos", "tres"))
+  }
+
+  test("normalizar: conserva dígitos y letras con tilde") {
+    assert(normalizar("Harry tiene 11 AÑOS") == Vector("harry", "tiene", "11", "años"))
+  }
 }

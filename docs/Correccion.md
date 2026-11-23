@@ -107,6 +107,11 @@ resultado es $\langle\rangle$.
 | Prueba | Entrada | Resultado esperado | Qué comprueba |
 |---|---|---|---|
 | contrato | `"El Gato Duerme"` | `Vector("el", "gato", "duerme")` | minúsculas y separación por espacios |
+| propia | `""` | `Vector()` | texto vacío |
+| propia | `"¡¿... , ; !?"` | `Vector()` | texto sin letras ni dígitos: `divide` solo tiene cadenas vacías y el filtro las quita todas |
+| propia | `"¡Expecto Patronum!"` | `Vector("expecto", "patronum")` | el separador del comienzo deja una cadena vacía que el filtro quita |
+| propia | `"uno,,dos--tres"` | `Vector("uno", "dos", "tres")` | varios separadores seguidos no dejan palabras vacías |
+| propia | `"Harry tiene 11 AÑOS"` | `Vector("harry", "tiene", "11", "años")` | los dígitos y las letras con tilde se conservan |
 
 ---
 
