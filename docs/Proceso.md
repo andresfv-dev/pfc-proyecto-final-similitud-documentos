@@ -373,6 +373,322 @@ en el mismo orden del corpus.
 
 ---
 
+## Punto 2.9: `indiceInvertido`
+
+```scala
+def indiceInvertido(hs: Vector[Huella]): Indice = {
+  val conPosicion = hs.zipWithIndex
+  val entradas    = conPosicion.flatMap(par => par._1.toVector.map(fragmento => (fragmento, par._2)))
+  val agrupado    = entradas.groupBy(entrada => entrada._1)
+  agrupado.map(grupo => (grupo._1, grupo._2.map(entrada => entrada._2).toSet))
+}
+```
+
+`indiceInvertido` no es recursiva: son cuatro transformaciones encadenadas.
+Primero se numera cada huella, después se convierte cada huella en parejas
+`(fragmento, posición)`, luego se agrupan las parejas por fragmento y por último
+se deja, para cada fragmento, el conjunto de posiciones.
+
+#### Paso a paso con tres huellas
+
+Corpus `("a", [x,y,z])`, `("b", [x,y,w])`, `("c", [p,q,r])` con `k = 2`; las
+huellas son `H0 = {[x,y], [y,z]}`, `H1 = {[x,y], [y,w]}` y `H2 = {[p,q], [q,r]}`.
+
+| Paso | Operación | Valor |
+|---|---|---|
+| 1 | `hs.zipWithIndex` | `Vector((H0,0), (H1,1), (H2,2))` |
+| 2 | `flatMap` con `(fragmento, posición)` | `Vector(([x,y],0), ([y,z],0), ([x,y],1), ([y,w],1), ([p,q],2), ([q,r],2))` |
+| 3 | `groupBy(_._1)` | `[x,y] → Vector(([x,y],0), ([x,y],1))`, `[y,z] → Vector(([y,z],0))`, ... |
+| 4 | `map` que deja las posiciones y `toSet` | `[x,y] → {0,1}`, `[y,z] → {0}`, `[y,w] → {1}`, `[p,q] → {2}`, `[q,r] → {2}` |
+
+El orden de las entradas de un `Map` no está definido; por eso las pruebas
+comparan el mapa completo o consultan un fragmento, nunca su orden.
+
+#### Cómo lo traduce el compilador
+
+Salida de la fase `typer` (con los tipos ya inferidos, resumida):
+
+```scala
+val conPosicion: Vector[(Huella, Int)] = hs.zipWithIndex;
+val entradas: Vector[(Fragmento, Int)] =
+  conPosicion.flatMap[(Fragmento, Int)](((par: (Huella, Int)) =>
+    par._1.toVector.map[(Fragmento, Int)](((fragmento: Fragmento) =>
+      scala.Tuple2.apply[Fragmento, Int](fragmento, par._2)))));
+val agrupado: Map[Fragmento, Vector[(Fragmento, Int)]] =
+  entradas.groupBy[Fragmento](((entrada: (Fragmento, Int)) => entrada._1));
+agrupado.map[Fragmento, Set[Int]](((grupo: (Fragmento, Vector[(Fragmento, Int)])) =>
+  scala.Tuple2.apply[Fragmento, Set[Int]](grupo._1,
+    grupo._2.map[Int](((entrada: (Fragmento, Int)) => entrada._2)).toSet[Int])))
+```
+
+Todo se llama directo sobre `Vector` y `Map`, que ya son colecciones de Scala:
+no hay conversiones implícitas. Después de `delambdafy` cada lambda es un
+método, y la lambda interna de `flatMap` recibe `par` como parámetro extra
+porque lo usa desde afuera:
+
+| Lo que escribimos | Método que genera el compilador |
+|---|---|
+| `par => par._1.toVector.map(...)` | `$anonfun$indiceInvertido$1(par: Tuple2): Vector` |
+| `fragmento => (fragmento, par._2)` | `$anonfun$indiceInvertido$2(par$1: Tuple2, fragmento: Vector): Tuple2` |
+| `entrada => entrada._1` | `$anonfun$indiceInvertido$3(entrada: Tuple2): Vector` |
+| `grupo => (grupo._1, ...)` | `$anonfun$indiceInvertido$4(grupo: Tuple2): Tuple2` |
+| `entrada => entrada._2` | `$anonfun$indiceInvertido$5(entrada: Tuple2): Int` |
+
+#### Iteración por iteración
+
+El `flatMap` hace una iteración por huella, y en cada una el `map` interno hace
+una iteración por fragmento de esa huella:
+
+| Iteración del `flatMap` | `par` | Parejas que agrega | Acumulado |
+|---|---|---|---|
+| 1 | `(H0, 0)` | `([x,y],0)`, `([y,z],0)` | 2 parejas |
+| 2 | `(H1, 1)` | `([x,y],1)`, `([y,w],1)` | 4 parejas |
+| 3 | `(H2, 2)` | `([p,q],2)`, `([q,r],2)` | 6 parejas |
+
+El `groupBy` recorre esas 6 parejas y las deja en 5 grupos, porque `[x,y]`
+aparece en dos. El último `map` hace una iteración por grupo: de cada uno toma
+las posiciones y `toSet` las vuelve conjunto.
+
+```mermaid
+flowchart LR
+    A["Vector(H0, H1, H2)"] -->|zipWithIndex| B["(H0,0) (H1,1) (H2,2)"]
+    B -->|flatMap| C["([x,y],0) ([y,z],0) ([x,y],1) ..."]
+    C -->|"groupBy(_._1)"| D["[x,y] → 2 parejas, otros → 1"]
+    D -->|"map + toSet"| E["[x,y] → {0,1}, [y,z] → {0}, ..."]
+```
+
+## Punto 2.10: `parejasCandidatas`
+
+```scala
+def parejasCandidatas(idx: Indice): Vector[Pareja] = {
+  val conjuntos = idx.values.toVector.map(docs => docs.toVector.sorted)
+  val todas     = conjuntos.flatMap(docs => docs.combinations(2).map(par => (par(0), par(1))).toVector)
+  todas.distinct.sorted
+}
+```
+
+No es recursiva. Toma los conjuntos de documentos del índice, de cada uno saca
+todas las parejas `(i, j)` con `i < j`, quita las repetidas y ordena.
+
+#### Paso a paso con el índice del ejemplo anterior
+
+| Paso | Operación | Valor |
+|---|---|---|
+| 1 | `idx.values.toVector` | `Vector({0,1}, {0}, {1}, {2}, {2})` (el orden de `values` no está definido) |
+| 2 | `map(docs => docs.toVector.sorted)` | `Vector([0,1], [0], [1], [2], [2])` |
+| 3 | `flatMap` con `combinations(2)` | `Vector((0,1))` |
+| 4 | `distinct` y `sorted` | `Vector((0,1))` |
+
+Solo el fragmento `[x,y]` está en dos documentos, así que solo la pareja
+`(0, 1)` es candidata; los documentos `0` y `2`, o `1` y `2`, no comparten nada y
+nunca se comparan.
+
+#### Cómo lo traduce el compilador
+
+Salida de la fase `typer`:
+
+```scala
+val conjuntos: Vector[Vector[Int]] =
+  idx.values.toVector.map[Vector[Int]](((docs: Set[Int]) =>
+    docs.toVector.sorted[Int](math.this.Ordering.Int)));
+val todas: Vector[(Int, Int)] =
+  conjuntos.flatMap[(Int, Int)](((docs: Vector[Int]) =>
+    docs.combinations(2).map[(Int, Int)](((par: Vector[Int]) =>
+      scala.Tuple2.apply[Int, Int](par.apply(0), par.apply(1)))).toVector));
+todas.distinct.sorted[(Int, Int)](math.this.Ordering.Tuple2[Int, Int](
+  math.this.Ordering.Int, math.this.Ordering.Int))
+```
+
+El compilador agrega por su cuenta el parámetro implícito de `sorted`: el orden
+`Ordering.Int` para los números y `Ordering.Tuple2(Int, Int)` para las parejas,
+que compara primero `i` y, a igualdad, `j`. Las tres lambdas pasan a ser
+`$anonfun$parejasCandidatas$1` (`docs => docs.toVector.sorted`), `$2` (la del
+`flatMap`) y `$3` (`par => (par(0), par(1))`).
+
+#### Iteración por iteración
+
+Con el índice `{[a] → {0,1}, [b] → {0,1}, [c] → {2,3}}`:
+
+| Iteración del `flatMap` | `docs` | `combinations(2)` | Acumulado |
+|---|---|---|---|
+| 1 | `[0,1]` | `(0,1)` | `(0,1)` |
+| 2 | `[0,1]` | `(0,1)` | `(0,1) (0,1)` |
+| 3 | `[2,3]` | `(2,3)` | `(0,1) (0,1) (2,3)` |
+
+`distinct` quita la segunda `(0,1)` y `sorted` ordena las dos que quedan:
+`Vector((0,1), (2,3))`. Una misma pareja puede salir de varios fragmentos, y
+por eso el `distinct` es necesario.
+
+```mermaid
+flowchart LR
+    A["{[a]→{0,1}, [b]→{0,1}, [c]→{2,3}}"] -->|"values.toVector.map(sorted)"| B["[0,1] [0,1] [2,3]"]
+    B -->|"flatMap(combinations 2)"| C["(0,1) (0,1) (2,3)"]
+    C -->|distinct| D["(0,1) (2,3)"]
+    D -->|sorted| E["Vector((0,1), (2,3))"]
+```
+
+## Punto 2.11: `ranking`
+
+```scala
+def ranking(ss: Vector[Medicion], umbral: Double, p: Int): Vector[Medicion] = {
+  val sobreUmbral = ss.filter(medicion => medicion._3 >= umbral)
+  val ordenadas   = sobreUmbral.sortBy(medicion => (-medicion._3, medicion._1, medicion._2))
+  ordenadas.take(p)
+}
+```
+
+No es recursiva: filtra las mediciones que alcanzan el umbral, las ordena de
+mayor a menor similitud y se queda con las primeras `p`. La clave de orden
+`(-similitud, i, j)` hace que los empates se resuelvan por posición, de modo que
+el resultado no dependa del orden en que llegaron las mediciones.
+
+#### Paso a paso con `ranking(Vector((1,2,0.5), (0,2,0.5), (0,1,0.9), (0,3,0.1)), 0.3, 2)`
+
+| Paso | Operación | Valor |
+|---|---|---|
+| 1 | `filter(_._3 >= 0.3)` | `Vector((1,2,0.5), (0,2,0.5), (0,1,0.9))` |
+| 2 | `sortBy((-_._3, _._1, _._2))` | `Vector((0,1,0.9), (0,2,0.5), (1,2,0.5))` |
+| 3 | `take(2)` | `Vector((0,1,0.9), (0,2,0.5))` |
+
+#### Cómo lo traduce el compilador
+
+Salida de la fase `typer`:
+
+```scala
+val sobreUmbral: Vector[Medicion] =
+  ss.filter(((medicion: Medicion) => medicion._3.>=(umbral)));
+val ordenadas: Vector[Medicion] =
+  sobreUmbral.sortBy[(Double, Int, Int)](((medicion: Medicion) =>
+    scala.Tuple3.apply[Double, Int, Int](medicion._3.unary_-, medicion._1, medicion._2)))(
+      math.this.Ordering.Tuple3[Double, Int, Int](
+        math.this.Ordering.DeprecatedDoubleOrdering, math.this.Ordering.Int, math.this.Ordering.Int));
+ordenadas.take(p)
+```
+
+- `-medicion._3` se vuelve `medicion._3.unary_-`: negar la similitud es lo que
+  hace que el orden ascendente de la clave deje primero la mayor similitud.
+- El compilador agrega el `Ordering.Tuple3` que compara las tres componentes
+  una tras otra.
+- La lambda del filtro usa `umbral`, que viene de afuera, así que después de
+  `delambdafy` queda como `$anonfun$ranking$1(umbral$1: Double, medicion: Tuple3)`;
+  la del `sortBy` no usa nada de afuera: `$anonfun$ranking$2(medicion: Tuple3)`.
+
+#### Iteración por iteración
+
+Paso 1, `filter` sobre 4 mediciones con `umbral = 0.3`:
+
+| Iteración | `medicion` | `_3 >= 0.3` | ¿Se conserva? |
+|---|---|---|---|
+| 1 | `(1,2,0.5)` | `true` | sí |
+| 2 | `(0,2,0.5)` | `true` | sí |
+| 3 | `(0,1,0.9)` | `true` | sí |
+| 4 | `(0,3,0.1)` | `false` | no |
+
+Paso 2, la clave de cada medición que `sortBy` compara:
+
+| Medición | Clave `(-similitud, i, j)` |
+|---|---|
+| `(1,2,0.5)` | `(-0.5, 1, 2)` |
+| `(0,2,0.5)` | `(-0.5, 0, 2)` |
+| `(0,1,0.9)` | `(-0.9, 0, 1)` |
+
+El orden ascendente de las claves es `(-0.9,0,1) < (-0.5,0,2) < (-0.5,1,2)`:
+la similitud 0.9 va primero, y las dos de 0.5 se desempatan por `i`.
+
+```mermaid
+flowchart LR
+    A["4 mediciones"] -->|"filter (_3 >= 0.3)"| B["3 mediciones"]
+    B -->|"sortBy (-_3, _1, _2)"| C["(0,1,0.9) (0,2,0.5) (1,2,0.5)"]
+    C -->|"take(2)"| D["(0,1,0.9) (0,2,0.5)"]
+```
+
+## Punto 2.12: `detectarDirecto` y `detectarConIndice`
+
+```scala
+def detectarDirecto(c: Corpus, k: Int, umbral: Double, p: Int): Vector[Medicion] = {
+  val hs         = huellas(c, k)
+  val todas      = parejas(c.length)
+  val mediciones = similitudes(hs, todas)
+  ranking(mediciones, umbral, p)
+}
+
+def detectarConIndice(c: Corpus, k: Int, umbral: Double, p: Int): Vector[Medicion] = {
+  val hs         = huellas(c, k)
+  val idx        = indiceInvertido(hs)
+  val candidatas = parejasCandidatas(idx)
+  val mediciones = similitudes(hs, candidatas)
+  ranking(mediciones, umbral, p)
+}
+```
+
+Ninguna de las dos es recursiva ni crea lambdas: cada una es una cadena de
+llamados a las funciones anteriores. Se diferencian en una sola línea: la
+directa mide las $n(n-1)/2$ parejas y la del índice mide solo las candidatas.
+
+#### Cómo lo traduce el compilador
+
+Salida de la fase `typer`:
+
+```scala
+// detectarDirecto
+val hs: Vector[Huella]           = Similitud.this.huellas(c, k);
+val todas: Vector[Pareja]        = Similitud.this.parejas(c.length);
+val mediciones: Vector[Medicion] = Similitud.this.similitudes(hs, todas);
+Similitud.this.ranking(mediciones, umbral, p)
+
+// detectarConIndice
+val hs: Vector[Huella]           = Similitud.this.huellas(c, k);
+val idx: Indice                  = Similitud.this.indiceInvertido(hs);
+val candidatas: Vector[Pareja]   = Similitud.this.parejasCandidatas(idx);
+val mediciones: Vector[Medicion] = Similitud.this.similitudes(hs, candidatas);
+Similitud.this.ranking(mediciones, umbral, p)
+```
+
+Son llamados directos a métodos del objeto `Similitud`: no hay conversiones
+implícitas ni lambdas.
+
+#### Llamado por llamado con el corpus `a = [x,y,z]`, `b = [x,y,w]`, `c = [p,q,r]`, `k = 2`, `umbral = 0.3`, `p = 5`
+
+```scala
+detectarDirecto(c, 2, 0.3, 5)
+  huellas(c, 2)                      // Vector({[x,y],[y,z]}, {[x,y],[y,w]}, {[p,q],[q,r]})
+  parejas(3)                         // Vector((0,1), (0,2), (1,2))
+  similitudes(hs, todas)             // Vector((0,1,1/3), (0,2,0.0), (1,2,0.0))
+  ranking(mediciones, 0.3, 5)        // Vector((0,1,1/3))
+
+detectarConIndice(c, 2, 0.3, 5)
+  huellas(c, 2)                      // las mismas tres huellas
+  indiceInvertido(hs)                // [x,y] → {0,1}, [y,z] → {0}, ...
+  parejasCandidatas(idx)             // Vector((0,1))
+  similitudes(hs, candidatas)        // Vector((0,1,1/3))
+  ranking(mediciones, 0.3, 5)        // Vector((0,1,1/3))
+```
+
+La directa midió 3 parejas y la del índice 1, pero las dos reportan lo mismo.
+
+```mermaid
+sequenceDiagram
+    participant D as detectarConIndice
+    participant H as huellas
+    participant I as indiceInvertido
+    participant P as parejasCandidatas
+    participant S as similitudes
+    participant R as ranking
+
+    D->>H: huellas(c, 2)
+    H-->>D: 3 huellas
+    D->>I: indiceInvertido(hs)
+    I-->>D: [x,y]→{0,1}, ...
+    D->>P: parejasCandidatas(idx)
+    P-->>D: Vector((0,1))
+    D->>S: similitudes(hs, candidatas)
+    S-->>D: Vector((0,1,1/3))
+    D->>R: ranking(mediciones, 0.3, 5)
+    R-->>D: Vector((0,1,1/3))
+```
+
+---
+
 ## Resumen de la traducción
 
 | Función | Lo que escribimos | Lo que genera el compilador | Lambdas generadas |
@@ -383,3 +699,7 @@ en el mismo orden del corpus.
 | `normalizar` | `filtra.toVector` | `wrapRefArray(filtra).toVector` | — |
 | `huella` | `frags.toSet` | `frags.toSet[Fragmento]` (directo, sin conversión) | — |
 | `huellas` | `c.map(documento => huella(documento, k))` | `c.map[Huella]($anonfun(k))` (directo, sin conversión) | `$anonfun$huellas$1(k$1: Int, documento): Set` |
+| `indiceInvertido` | `hs.zipWithIndex.flatMap(...)`, `groupBy`, `map` | llamados directos sobre `Vector` y `Map`, sin conversión | `$anonfun$indiceInvertido$1` a `$5` |
+| `parejasCandidatas` | `todas.distinct.sorted` | `sorted[(Int, Int)](Ordering.Tuple2(Int, Int))`: el orden se pasa como parámetro implícito | `$anonfun$parejasCandidatas$1` a `$3` |
+| `ranking` | `sortBy(m => (-m._3, m._1, m._2))` | `sortBy[(Double, Int, Int)](f)(Ordering.Tuple3(...))` y `-m._3` pasa a `m._3.unary_-` | `$anonfun$ranking$1(umbral$1, medicion)`, `$anonfun$ranking$2(medicion)` |
+| `detectarDirecto`, `detectarConIndice` | cadena de `val` con llamados | llamados directos a `Similitud.this.f(...)` | — |
