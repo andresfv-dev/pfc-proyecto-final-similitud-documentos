@@ -122,7 +122,12 @@ object Similitud {
   }
 
   /** La similitud de cada pareja que se le pase, en el mismo orden. */
-  def similitudes(hs: Vector[Huella], ps: Vector[Pareja]): Vector[Medicion] = ???
+  def similitudes(hs: Vector[Huella], ps: Vector[Pareja]): Vector[Medicion] = {
+    ps.map { case (primera, segunda) =>
+      val similitud = jaccard(hs(primera), hs(segunda))
+      (primera, segunda, similitud)
+    }
+  }
 
   /**
    * El mapa de cada fragmento al conjunto de documentos donde aparece, con los

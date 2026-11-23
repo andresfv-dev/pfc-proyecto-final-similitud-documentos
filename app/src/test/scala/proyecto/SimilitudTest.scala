@@ -361,4 +361,35 @@ class SimilitudTest extends AnyFunSuite {
   test("detectarConIndice: sin fragmentos en común no reporta nada") {
     assert(detectarConIndice(cDistintos, 2, 0.1, 5) == Vector())
   }
+
+  //Pruebas similitudes
+  test("similitudes: sin parejas pedidas no compara las huellas del informe") {
+    val huellasInforme = Vector(Set(Vector("informe", "final")), Set(Vector("informe", "final")))
+    assert(similitudes(huellasInforme, Vector.empty).isEmpty)
+  }
+
+  test("similitudes: compara la primera y la tercera receta sin medir la segunda") {
+    val recetas = Vector(Set(Vector("arroz", "blanco")), Set(Vector("sopa", "caliente")),
+      Set(Vector("arroz", "blanco"), Vector("pollo", "asado")))
+    assert(similitudes(recetas, Vector((0, 2))) == Vector((0, 2, 0.5)))
+  }
+
+  test("similitudes: respeta el orden pedido aunque las parejas estén desordenadas") {
+    val avisos = Vector(Set(Vector("clase", "virtual")),
+      Set(Vector("clase", "virtual"), Vector("lunes", "tarde")),
+      Set(Vector("clase", "virtual"), Vector("lunes", "tarde")))
+    assert(similitudes(avisos, Vector((1, 2), (0, 1))) == Vector((1, 2, 1.0), (0, 1, 0.5)))
+  }
+
+  test("similitudes: conserva una medición de cero entre dos con coincidencias") {
+    val menus = Vector(Set(Vector("jugo", "natural")), Set(Vector("jugo", "natural")),
+      Set(Vector("pan", "tostado")), Set(Vector("jugo", "natural"), Vector("pan", "tostado")))
+    val pedidas = Vector((0, 1), (0, 2), (2, 3))
+    assert(similitudes(menus, pedidas) == Vector((0, 1, 1.0), (0, 2, 0.0), (2, 3, 0.5)))
+  }
+
+  test("similitudes: guarda cero cuando ninguno de los títulos tiene un fragmento") {
+    val titulos = Vector(("aviso", Vector("reunión")), ("nota", Vector("entrega")))
+    assert(similitudes(huellas(titulos, 2), Vector((0, 1))) == Vector((0, 1, 0.0)))
+  }
 }
