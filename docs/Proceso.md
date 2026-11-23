@@ -373,6 +373,112 @@ en el mismo orden del corpus.
 
 ---
 
+## Punto 2.6: `jaccard`
+
+```scala
+def jaccard(h1: Huella, h2: Huella): Double = {
+  val comunes = h1.intersect(h2)
+  val unidos = h1.union(h2)
+  if (unidos.isEmpty) 0.0
+  else comunes.size.toDouble / unidos.size
+}
+```
+
+#### Paso a paso
+
+Tomemos `h1 = Set(Vector("sol"), Vector("luna"))` y
+`h2 = Set(Vector("sol"))`.
+
+| Paso | Operación | Valor |
+|---|---|---|
+| 1 | `h1.intersect(h2)` | `Set(Vector("sol"))` |
+| 2 | `h1.union(h2)` | `Set(Vector("sol"), Vector("luna"))` |
+| 3 | `unidos.isEmpty` | `false`, así que se toma el `else` |
+| 4 | `comunes.size.toDouble / unidos.size` | `1.0 / 2 = 0.5` |
+
+Si las dos huellas llegan vacías, en el paso 3 se toma la otra rama y el
+resultado es `0.0`. Ahí no se hace la división.
+
+#### Cómo lo traduce el compilador
+
+`intersect` y `union` quedan como llamados directos sobre `Set`. No hay
+ningún `for` ni funciones anónimas. La división se hace con `Double`,
+porque el numerador se convierte con `toDouble`.
+
+---
+
+## Punto 2.7: `parejas`
+
+```scala
+def parejas(n: Int): Vector[Pareja] = {
+  for {
+    primera <- (0 until n).toVector
+    segunda <- (primera + 1) until n
+  } yield (primera, segunda)
+}
+```
+
+#### Cómo lo traduce el compilador
+
+El `for` tiene dos recorridos. El de afuera se traduce a `flatMap` y el de
+adentro a `map`. Es equivalente a escribirlo así:
+
+```scala
+(0 until n).toVector.flatMap { primera =>
+  ((primera + 1) until n).map { segunda =>
+    (primera, segunda)
+  }
+}
+```
+
+El `map` arma las parejas para una primera posición y el `flatMap` las
+junta en un solo vector, sin dejar un vector por cada posición.
+
+#### Paso a paso con `parejas(4)`
+
+| `primera` | Valores de `segunda` | Parejas que se agregan |
+|---|---|---|
+| `0` | `1`, `2`, `3` | `(0,1)`, `(0,2)`, `(0,3)` |
+| `1` | `2`, `3` | `(1,2)`, `(1,3)` |
+| `2` | `3` | `(2,3)` |
+| `3` | ninguno | ninguna |
+
+Al final queda `Vector((0,1), (0,2), (0,3), (1,2), (1,3), (2,3))`.
+
+---
+
+## Punto 2.8: `similitudes`
+
+```scala
+def similitudes(hs: Vector[Huella], ps: Vector[Pareja]): Vector[Medicion] = {
+  ps.map { case (primera, segunda) =>
+    val similitud = jaccard(hs(primera), hs(segunda))
+    (primera, segunda, similitud)
+  }
+}
+```
+
+#### Paso a paso
+
+Tomemos `hs = Vector(Set(Vector("sol")), Set(Vector("sol"), Vector("luna")),
+Set(Vector("luna")))` y pidamos `Vector((0,2), (0,1))`.
+
+| Pareja | Llamado | Medición |
+|---|---|---|
+| `(0,2)` | `jaccard(hs(0), hs(2))` | `(0,2,0.0)` |
+| `(0,1)` | `jaccard(hs(0), hs(1))` | `(0,1,0.5)` |
+
+El resultado es `Vector((0,2,0.0), (0,1,0.5))`. La medición de cero se
+queda y las parejas salen en el orden en que se pidieron.
+
+#### Cómo lo traduce el compilador
+
+El llamado a `map` va directo sobre el vector `ps`. `case (primera,
+segunda)` separa las dos posiciones de cada tupla, y la función que se le
+pasa al `map` usa `hs` para buscar las huellas.
+
+---
+
 ## Punto 2.9: `indiceInvertido`
 
 ```scala
@@ -699,6 +805,9 @@ sequenceDiagram
 | `normalizar` | `filtra.toVector` | `wrapRefArray(filtra).toVector` | — |
 | `huella` | `frags.toSet` | `frags.toSet[Fragmento]` (directo, sin conversión) | — |
 | `huellas` | `c.map(documento => huella(documento, k))` | `c.map[Huella]($anonfun(k))` (directo, sin conversión) | `$anonfun$huellas$1(k$1: Int, documento): Set` |
+| `jaccard` | `intersect`, `union` y `if` | llamados directos sobre `Set` y una condición | — |
+| `parejas` | dos recorridos en el `for` con `yield` | `flatMap` por fuera y `map` por dentro | una función por recorrido |
+| `similitudes` | `ps.map { case (primera, segunda) => ... }` | `map` directo sobre `Vector` | una función que recibe la pareja y usa `hs` |
 | `indiceInvertido` | `hs.zipWithIndex.flatMap(...)`, `groupBy`, `map` | llamados directos sobre `Vector` y `Map`, sin conversión | `$anonfun$indiceInvertido$1` a `$5` |
 | `parejasCandidatas` | `todas.distinct.sorted` | `sorted[(Int, Int)](Ordering.Tuple2(Int, Int))`: el orden se pasa como parámetro implícito | `$anonfun$parejasCandidatas$1` a `$3` |
 | `ranking` | `sortBy(m => (-m._3, m._1, m._2))` | `sortBy[(Double, Int, Int)](f)(Ordering.Tuple3(...))` y `-m._3` pasa a `m._3.unary_-` | `$anonfun$ranking$1(umbral$1, medicion)`, `$anonfun$ranking$2(medicion)` |
